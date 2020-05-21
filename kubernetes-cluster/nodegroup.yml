@@ -1,0 +1,78 @@
+Description: >
+  Creates the cloudformation stack containing the nodes for the k8s cluster
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+
+  NodeAutoScalingGroupDesiredSize:
+    Type: Number
+    Default: 2
+    Description: Desired number of nodes.
+
+  NodeAutoScalingGroupMaxSize:
+    Type: Number
+    Default: 4
+    Description: Maximum number of nodes.
+
+  NodeAutoScalingGroupMinSize:
+    Type: Number
+    Default: 1
+    Description: Minimum number of nodes.
+
+  NodeGroupName:
+    Type: String
+    Description: Unique identifier for the Node Group.
+
+  NodeInstanceType:
+    Type: String
+    Default: t3.medium
+
+  NodeVolumeSize:
+    Type: Number
+    Default: 20
+    Description: Node volume size
+
+  ClusterName:
+    Type: String
+    # no default as it needs to be correct
+
+Resources:
+  
+  # IAM role for the cluster nodes
+  NodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+
+  # The node group is an autoscaling group for EKS nodes
+  EKSNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties: 
+      ClusterName: !Ref ClusterName
+      DiskSize: !Ref NodeVolumeSize
+      InstanceTypes: 
+        - !Ref NodeInstanceType
+      NodegroupName: !Ref NodeGroupName
+      NodeRole:
+        Fn::GetAtt: ["NodeRole", "Arn"]
+      ScalingConfig:
+        DesiredSize: !Ref NodeAutoScalingGroupDesiredSize
+        MaxSize: !Ref NodeAutoScalingGroupMaxSize
+        MinSize: !Ref NodeAutoScalingGroupMinSize
+      Subnets: 
+        - Fn::ImportValue: !Sub "${EnvironmentName}-PRIV1-SN"
+        - Fn::ImportValue: !Sub "${EnvironmentName}-PRIV2-SN"

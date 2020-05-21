@@ -1,0 +1,14 @@
+[
+    {
+        "ParameterKey": "EnvironmentName",
+        "ParameterValue": "Udacity-K8s"
+    },
+    {
+        "ParameterKey": "EKSRoleName",
+        "ParameterValue": "Udacity-K8s-ESK-Role"
+    },
+    {
+        "ParameterKey": "EKSClusterName",
+        "ParameterValue": "Udacity-K8s-Cluster"
+    }
+]

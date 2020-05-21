@@ -1,0 +1,243 @@
+Description: >
+  This cloudformation script creates a stack with the underlying network for kubernetes cluster.
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+  VpcCIDR:
+    Type: String
+    Default: 10.0.0.0/16
+  PublicSubnet1CIDR:
+    Type: String
+    Default: 10.0.0.0/24
+  PublicSubnet2CIDR:
+    Type: String
+    Default: 10.0.1.0/24
+  PrivateSubnet1CIDR:
+    Type: String
+    Default: 10.0.2.0/24
+  PrivateSubnet2CIDR:
+    Type: String
+    Default: 10.0.3.0/24
+
+Resources:
+
+  # The VPC holding it all  
+  K8sVPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  # A private subnet for the cluster nodes in AZ1
+  PrivateSubNet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref K8sVPC
+      AvailabilityZone: !Select [ 0 , !GetAZs '' ]
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+
+  # A private subnet for the cluster nodes in AZ2
+  PrivateSubNet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref K8sVPC
+      AvailabilityZone: !Select [ 1 , !GetAZs '' ]
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
+  
+  # A public subnet for the NAT gateway in AZ1
+  PublicSubNet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref K8sVPC
+      AvailabilityZone: !Select [ 0 , !GetAZs '' ]
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+
+  # A second public subnet for the NAT gateway in AZ2
+  PublicSubNet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref K8sVPC
+      AvailabilityZone: !Select [ 1 , !GetAZs '' ]
+      CidrBlock: !Ref PublicSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+
+  # An internet gateway to enable communication with the internet
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  # and attach this internet gateway to our vpc
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref K8sVPC
+
+  # a route table to hold the public routes
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      VpcId: !Ref K8sVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Routes
+
+  # the defualt route for non local traffic leads to the internet gateway
+  DefaultPublicRoute: 
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # associate the route table to the first public net
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubNet1
+
+  # and also to the second
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubNet2
+
+  # An elastic IP fpr the first Nat-Gateway to make sure, IPs don't frequently change
+  NatGateWay1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+        Domain: vpc
+
+  # And an IP for the second Nat-Gateway 
+  NatGateWay2EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+        Domain: vpc
+
+  # The NAT Gateway in the first subnet / AZ
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateWay1EIP.AllocationId
+      SubnetId: !Ref PublicSubNet1
+
+  # The NAT Gateway in the second subnet / AZ
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateWay2EIP.AllocationId
+      SubnetId: !Ref PublicSubNet2
+
+  # A route table for the private routes in AZ1
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      VpcId: !Ref K8sVPC
+      Tags: 
+        - Key: Name 
+          Value: !Sub ${EnvironmentName} Private Routes (AZ1)
+
+  # All non local traffic is routed to the first NAT-GW
+  PrivateRouteToNAT1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  # This route is associated to the first private net
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubNet1
+  
+  # A route table for the private routes in AZ2
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      VpcId: !Ref K8sVPC
+      Tags: 
+        - Key: Name 
+          Value: !Sub ${EnvironmentName} Private Routes (AZ2)
+
+  # All non local traffic is routed to the second NAT-GW
+  PrivateRouteToNAT2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+
+  # This route is associated to the second private net
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      SubnetId: !Ref PrivateSubNet2
+
+Outputs:
+
+  # The name of the VPC as further resources will be assigned to this VPC
+  VPC: 
+    Description: Reference to the created VPC
+    Value: !Ref K8sVPC
+    Export:
+      Name: !Sub ${EnvironmentName}-VPC
+
+  # A reference to the private net in AZ1
+  PrivateSubnet1:
+    Description: A reference to the private subnet in the 1st Availability Zone
+    Value: !Ref PrivateSubNet1
+    Export:
+      Name: !Sub ${EnvironmentName}-PRIV1-SN
+
+  # A reference to the private net in AZ2
+  PrivateSubnet2:
+    Description: A reference to the private subnet in the 2nd Availability Zone
+    Value: !Ref PrivateSubNet2
+    Export:
+      Name: !Sub ${EnvironmentName}-PRIV2-SN    
+
+  # A reference to the public net in AZ1 to be used by the loadbalancer
+  PublicSubnet1:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref PublicSubNet1
+    Export:
+      Name: !Sub ${EnvironmentName}-PUB1-SN
+
+  # and the same for the public net in AZ2
+  PublicSubnet2: 
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref PublicSubNet2
+    Export:
+      Name: !Sub ${EnvironmentName}-PUB2-SN

@@ -1,0 +1,34 @@
+[
+    {
+        "ParameterKey": "EnvironmentName",
+        "ParameterValue": "Udacity-K8s"
+    },
+    {
+        "ParameterKey": "ClusterName",
+        "ParameterValue": "Udacity-K8s-Cluster"
+    },
+    {
+        "ParameterKey": "NodeAutoScalingGroupDesiredSize",
+        "ParameterValue": "2"
+    },
+    {
+        "ParameterKey": "NodeAutoScalingGroupMaxSize",
+        "ParameterValue": "4"
+    },
+    {
+        "ParameterKey": "NodeAutoScalingGroupMinSize",
+        "ParameterValue": "1"
+    },
+    {
+        "ParameterKey": "NodeGroupName",
+        "ParameterValue": "Udacity-K8s-Nodegroup"
+    },
+    {
+        "ParameterKey": "NodeInstanceType",
+        "ParameterValue": "t3.medium"
+    },
+    {
+        "ParameterKey": "NodeVolumeSize",
+        "ParameterValue": "20"
+    }
+]

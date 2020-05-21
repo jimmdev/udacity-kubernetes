@@ -1,0 +1,68 @@
+Description: >
+  This cloudformation script creates a stack containing the kubernetes cluster itself.
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+
+  EKSRoleName:
+    Type: String
+
+  EKSClusterName:
+    Type: String
+
+Resources:
+
+  # Security group for the masters
+  MasterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: master communication with nodes
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPC"
+
+  # An IAM Role for the cluster
+  EKSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - eks.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      RoleName: !Ref EKSRoleName
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+
+  # The cluster itself
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Ref EKSClusterName
+      RoleArn:
+        "Fn::GetAtt": ["EKSRole", "Arn"]
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Ref MasterSecurityGroup
+        SubnetIds:
+          - Fn::ImportValue: !Sub "${EnvironmentName}-PUB1-SN"
+          - Fn::ImportValue: !Sub "${EnvironmentName}-PUB2-SN"
+          - Fn::ImportValue: !Sub "${EnvironmentName}-PRIV1-SN"
+          - Fn::ImportValue: !Sub "${EnvironmentName}-PRIV2-SN"
+    DependsOn: [EKSRole, MasterSecurityGroup]
+
+Outputs:
+
+  # The security group for the masters
+  MasterSecurityGroup:
+    Description: A reference to the security group of the masters
+    Value: !Ref MasterSecurityGroup
+    Export:
+      Name: !Sub ${EnvironmentName}-Master-SEC-GROUP
