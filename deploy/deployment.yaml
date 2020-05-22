@@ -23,7 +23,7 @@ spec:
                 name: udacity-page
         spec:
             containers:
-            - image: 119285437954.dkr.ecr.us-west-2.amazonaws.com/udacity:latest
+            - image: 119285437954.dkr.ecr.us-west-2.amazonaws.com/udacity:REPLACETAG
               imagePullPolicy: Always
               name: udacity-page
               ports:
