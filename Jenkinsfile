@@ -28,7 +28,7 @@ pipeline {
                 withAWS(region:'us-west-2',credentials:'AWSCredentials') {
                     sh 'aws eks update-kubeconfig --name Udacity-K8s-Cluster'
                     sh 'kubectl version'
-                    sh 'sed -i "" "s|REPLACETAG|${env.BUILD_ID}|g" deploy/deployment.yaml'
+                    sh 'sed -i "s|REPLACETAG|${env.BUILD_ID}|g" deploy/deployment.yaml'
                     sh 'kubectl apply -R -f deploy/'
                 }
             }
