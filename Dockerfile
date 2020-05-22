@@ -1,3 +1,3 @@
 FROM nginx:alpine
-COPY html_content /usr/share/nginx/htlm
+COPY html_content/index.html /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
