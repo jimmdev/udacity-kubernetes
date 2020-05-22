@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: udacity-page
+    namespace: default
+    labels:
+        name: udacity-page
+spec:
+    replicas: 4
+    selector:
+        matchLabels:
+          name: udacity-page
+    strategy:
+        type: RollingUpdate
+        rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 50%
+    template:
+        metadata:
+            name: udacity-page
+            namespace: default
+            labels:
+                name: udacity-page
+        spec:
+            containers:
+            - image: 119285437954.dkr.ecr.us-west-2.amazonaws.com/udacity:latest
+              imagePullPolicy: Always
+              name: udacity-page
+              ports:
+              - containerPort: 8080
